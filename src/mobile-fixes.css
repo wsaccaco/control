@@ -1,0 +1,45 @@
+/* Disable tooltips on touch devices/mobile to improve tap responsiveness */
+@media (hover: none) {
+    .ant-tooltip {
+        display: none !important;
+    }
+}
+
+/* Prevent iOS input zoom by ensuring font size is adequate */
+input,
+textarea,
+select {
+    font-size: 16px !important;
+}
+
+/* Mobile-Specific Button Enhancements */
+@media (max-width: 768px) {
+
+    /* Force larger touch targets for buttons on mobile */
+    .ant-btn {
+        height: 40px !important;
+        /* Min height for comfortable touch */
+        font-size: 16px !important;
+        padding: 4px 15px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    /* Adjust icon sizes inside buttons */
+    .ant-btn .anticon {
+        font-size: 18px !important;
+    }
+
+    /* Specific fixes for small circle buttons used in cards */
+    .ant-btn.ant-btn-circle.ant-btn-sm {
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+    }
+
+    /* Increase spacing in button groups/rows on mobile */
+    .ant-card .ant-btn {
+        margin-bottom: 4px;
+    }
+}

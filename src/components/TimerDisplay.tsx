@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 
@@ -15,6 +15,14 @@ interface TimerDisplayProps {
 export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, mode = 'fixed', onExpire, viewMode = 'remaining' }) => {
     const [displayTime, setDisplayTime] = useState<string>('--:--');
     const [isExpired, setIsExpired] = useState(false);
+    const hasVibratedRef = useRef(false);
+
+    useEffect(() => {
+        // Reset vibration flag if active session ends or changes
+        if (!endTime && !startTime) {
+            hasVibratedRef.current = false;
+        }
+    }, [endTime, startTime]);
 
     useEffect(() => {
         // If no running session
@@ -43,6 +51,10 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
                     // Check expiration for color/redness logic only
                     if (now.isAfter(end)) {
                         setIsExpired(true);
+                        if (!hasVibratedRef.current && navigator.vibrate) {
+                            navigator.vibrate([500, 200, 500]); // Vibrate pattern
+                            hasVibratedRef.current = true;
+                        }
                     } else {
                         setIsExpired(false);
                     }
@@ -54,6 +66,14 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
 
                 if (diff <= 0) {
                     setIsExpired(true);
+
+                    if (!hasVibratedRef.current) {
+                        if (navigator.vibrate) {
+                            navigator.vibrate([500, 200, 500]); // Vibrate pattern
+                        }
+                        hasVibratedRef.current = true;
+                    }
+
                     const overtime = now.diff(end);
                     const dur = dayjs.duration(overtime);
                     const hours = Math.floor(dur.asHours());
@@ -62,6 +82,11 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
                     setDisplayTime(`Hace ${hours > 0 ? String(hours).padStart(2, '0') + ':' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
                 } else {
                     setIsExpired(false);
+                    // Reset vibration if for some reason time was added and we are back to positive
+                    if (diff > 0) {
+                        hasVibratedRef.current = false;
+                    }
+
                     const dur = dayjs.duration(diff);
                     const hours = Math.floor(dur.asHours());
                     const mins = dur.minutes();

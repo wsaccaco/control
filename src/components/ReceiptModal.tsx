@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
-import { Modal, Typography, Divider, Descriptions, Table, Button } from 'antd';
-import { PrinterOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Modal, Typography, Divider, Table, Button, Flex } from 'antd';
+import { PrinterOutlined, CheckCircleOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import type { Computer } from '../types';
 import { formatCurrency } from '../utils/pricing';
 import dayjs from 'dayjs';
@@ -10,12 +10,13 @@ interface ReceiptModalProps {
     onCancel: () => void;
     onConfirm: () => void;
     computer: Computer;
-    finalDurationPrice: number; // Calculated outside usually, or we recalculate here
+    finalDurationPrice: number;
 }
 
 const { Title, Text } = Typography;
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onCancel, onConfirm, computer, finalDurationPrice }) => {
+    const [showDetails, setShowDetails] = useState(false);
 
     const extrasTotal = (computer.extras || []).reduce((sum, extra) => sum + extra.price, 0);
     const total = finalDurationPrice + extrasTotal;
@@ -23,7 +24,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onCancel, o
     const endTime = dayjs().format('hh:mm A');
     const duration = computer.startTime ? dayjs().diff(dayjs(computer.startTime), 'minute') : 0;
 
-    // Combine history for table
     const historyData = (computer.history || []).map((h, i) => ({
         key: i,
         time: dayjs(h.time).format('hh:mm A'),
@@ -41,55 +41,58 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onCancel, o
 
     return (
         <Modal
-            title="Resumen de Sesión / Recibo"
             open={visible}
             onCancel={onCancel}
-            footer={[
-                <Button key="cancel" onClick={onCancel}>Volver</Button>,
-                <Button key="confirm" type="primary" icon={<CheckCircleOutlined />} onClick={onConfirm}>Confirmar y Finalizar</Button>
-            ]}
-            width={600}
+            footer={null} // Custom footer styling in body or manual footer
+            width={400} // Smaller default width
+            centered
         >
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <Title level={4}>LAN CENTER</Title>
-                <Text type="secondary">{dayjs().format('DD/MM/YYYY')}</Text>
-            </div>
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <Title level={4} style={{ margin: 0 }}>Total a Cobrar</Title>
+                <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#52c41a', margin: '10px 0' }}>
+                    {formatCurrency(total)}
+                </div>
 
-            <Descriptions bordered size="small" column={1}>
-                <Descriptions.Item label="Cliente"><b>{computer.customerName || 'Cliente'}</b></Descriptions.Item>
-                <Descriptions.Item label="Equipo">{computer.name}</Descriptions.Item>
-                <Descriptions.Item label="Inicio">{startTime}</Descriptions.Item>
-                <Descriptions.Item label="Fin">{endTime}</Descriptions.Item>
-                <Descriptions.Item label="Tiempo Total">{duration} min</Descriptions.Item>
-            </Descriptions>
+                <div style={{ marginBottom: 20, color: '#8c8c8c' }}>
+                    <div>Cliente: <b>{computer.customerName || 'Cliente'}</b></div>
+                    <div>Tiempo: {duration} min</div>
+                </div>
 
-            <Divider orientation="left">Detalle de Cobros</Divider>
+                <Button
+                    type="link"
+                    icon={showDetails ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                    onClick={() => setShowDetails(!showDetails)}
+                    style={{ marginBottom: 16 }}
+                >
+                    {showDetails ? 'Ocultar Detalles' : 'Ver Detalle del Consumo'}
+                </Button>
 
-            <Table
-                dataSource={historyData}
-                columns={columns}
-                pagination={false}
-                size="small"
-                bordered
-                summary={() => (
-                    <>
-                        <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={3} style={{ textAlign: 'right' }}><b>Subtotal Tiempo</b></Table.Summary.Cell>
-                            <Table.Summary.Cell index={1} align="right">{formatCurrency(finalDurationPrice)}</Table.Summary.Cell>
-                        </Table.Summary.Row>
-                        {extrasTotal > 0 && (
-                            <Table.Summary.Row>
-                                <Table.Summary.Cell index={0} colSpan={3} style={{ textAlign: 'right' }}><b>Subtotal Extras</b></Table.Summary.Cell>
-                                <Table.Summary.Cell index={1} align="right">{formatCurrency(extrasTotal)}</Table.Summary.Cell>
-                            </Table.Summary.Row>
-                        )}
-                        <Table.Summary.Row style={{ background: '#fafafa' }}>
-                            <Table.Summary.Cell index={0} colSpan={3} style={{ textAlign: 'right' }}><b>TOTAL A PAGAR</b></Table.Summary.Cell>
-                            <Table.Summary.Cell index={1} align="right"><Text type="success" strong>{formatCurrency(total)}</Text></Table.Summary.Cell>
-                        </Table.Summary.Row>
-                    </>
+                {showDetails && (
+                    <div style={{ textAlign: 'left', marginBottom: 20 }}>
+                        <Table
+                            dataSource={historyData}
+                            columns={columns}
+                            pagination={false}
+                            size="small"
+                            bordered
+                            scroll={{ y: 200 }}
+                        />
+                        <div style={{ marginTop: 10, textAlign: 'right', fontWeight: 'bold' }}>
+                            <div>Tiempo: {formatCurrency(finalDurationPrice)}</div>
+                            <div>Extras: {formatCurrency(extrasTotal)}</div>
+                        </div>
+                    </div>
                 )}
-            />
+
+                <Flex gap="small" vertical>
+                    <Button type="primary" size="large" block icon={<CheckCircleOutlined />} onClick={onConfirm} style={{ height: '50px', fontSize: '18px' }}>
+                        COBRAR Y FINALIZAR
+                    </Button>
+                    <Button block onClick={onCancel}>
+                        Cancelar
+                    </Button>
+                </Flex>
+            </div>
         </Modal>
     );
 };
