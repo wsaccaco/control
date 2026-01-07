@@ -4,5 +4,21 @@ import { io, Socket } from 'socket.io-client';
 const URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3000`;
 
 export const socket: Socket = io(URL, {
-    autoConnect: true
+    autoConnect: false, // Wait for manual connection after auth
+    auth: (cb) => {
+        const token = localStorage.getItem('auth_token');
+        cb({ token });
+    }
 });
+
+export const connectSocket = () => {
+    if (!socket.connected) {
+        socket.connect();
+    }
+};
+
+export const disconnectSocket = () => {
+    if (socket.connected) {
+        socket.disconnect();
+    }
+};

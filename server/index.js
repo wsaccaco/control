@@ -6,7 +6,25 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const db = require('./db');
 
+const jwt = require('jsonwebtoken');
+
+// Auth Configuration
+const SECRET_KEY = process.env.JWT_SECRET || 'super-secret-key-change-this';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
 app.use(cors());
+app.use(express.json()); // Enable JSON body parsing for login
+
+// Login Endpoint
+app.post('/api/login', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASSWORD) {
+        // Issue token valid for 24 hours
+        const token = jwt.sign({ role: 'admin' }, SECRET_KEY, { expiresIn: '24h' });
+        return res.json({ success: true, token });
+    }
+    return res.status(401).json({ success: false, message: 'Invalid password' });
+});
 
 app.get('/', (req, res) => {
     res.send('LAN Center API is running correctly 🚀');
@@ -20,6 +38,22 @@ const io = new Server(server, {
         origin: "*",
         methods: ["GET", "POST"]
     }
+});
+
+// Socket Authentication Middleware
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+        return next(new Error("Authentication error: No token provided"));
+    }
+
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            return next(new Error("Authentication error: Invalid token"));
+        }
+        socket.decoded = decoded;
+        next();
+    });
 });
 
 io.on('connection', (socket) => {

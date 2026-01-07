@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Computer } from '../types';
 import { useSettings } from './SettingsContext';
-import { socket } from '../services/socket';
+import { socket, connectSocket, disconnectSocket } from '../services/socket';
 
 interface ComputerContextType {
     computers: Computer[];
@@ -22,8 +22,10 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [computers, setComputers] = useState<Computer[]>([]);
 
     useEffect(() => {
+        // Connect to socket (with auth token) when this component mounts
+        connectSocket();
+
         // Initialize/Sync with server
-        // We send the expected count, server handles whether to expand or not
         socket.emit('initialize-computers', pcCount);
 
         const onUpdate = (data: Computer[]) => {
@@ -34,6 +36,7 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         return () => {
             socket.off('computers-update', onUpdate);
+            disconnectSocket(); // Disconnect when user logs out/leaves
         };
     }, [pcCount]);
 
