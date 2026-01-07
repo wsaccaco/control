@@ -32,7 +32,7 @@ export const LoginPage: React.FC = () => {
             justifyContent: 'center',
             alignItems: 'center',
             height: '100vh',
-            background: '#f0f2f5'
+            background: '#141414'
         }}>
             <Card style={{ width: 300, textAlign: 'center' }}>
                 <div style={{ marginBottom: 24 }}>

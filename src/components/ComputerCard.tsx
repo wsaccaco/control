@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Tag, Dropdown, Popconfirm, Flex, Tooltip, Space } from 'antd';
+import { Card, Button, Tag, Dropdown, Popconfirm, Flex, Tooltip, Space, notification } from 'antd';
 import type { MenuProps } from 'antd';
 import { DesktopOutlined, PlayCircleOutlined, StopOutlined, PlusOutlined, MoreOutlined, ToolOutlined, DollarOutlined, FieldTimeOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import type { Computer } from '../types';
@@ -137,6 +137,35 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
 
     const total = currentPrice + (computer.extras?.reduce((sum, e) => sum + e.price, 0) || 0);
 
+    const handleExpiration = () => {
+        // 1. Native Browser Notification
+        const showNotification = () => {
+            new Notification('Tiempo Terminado', {
+                body: `El tiempo de ${computer.name} ha finalizado.`,
+                icon: '/icon.png' // Optional: if you have an icon
+            });
+        };
+
+        if (Notification.permission === 'granted') {
+            showNotification();
+        } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    showNotification();
+                }
+            });
+        }
+
+        // 2. Play Sound
+        try {
+            // Simple beep sound
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+            audio.play().catch(e => console.error("Audio play failed", e));
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     return (
         <>
             <Card
@@ -183,7 +212,13 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
 
                         {/* Timer */}
                         <div style={{ transform: 'scale(0.9)' }}>
-                            <TimerDisplay endTime={computer.endTime} startTime={computer.startTime} mode={computer.mode} viewMode={viewMode} />
+                            <TimerDisplay
+                                endTime={computer.endTime}
+                                startTime={computer.startTime}
+                                mode={computer.mode}
+                                viewMode={viewMode}
+                                onExpire={handleExpiration}
+                            />
                         </div>
 
                         {/* Progress Bar (Fixed only) */}

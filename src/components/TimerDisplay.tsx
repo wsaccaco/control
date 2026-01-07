@@ -15,12 +15,15 @@ interface TimerDisplayProps {
 export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, mode = 'fixed', onExpire, viewMode = 'remaining' }) => {
     const [displayTime, setDisplayTime] = useState<string>('--:--');
     const [isExpired, setIsExpired] = useState(false);
-    const hasVibratedRef = useRef(false);
+    const hasExpiredRef = useRef(false);
 
     useEffect(() => {
-        // Reset vibration flag if active session ends or changes
+        // Reset expiration flag if active session ends or changes
         if (!endTime && !startTime) {
-            hasVibratedRef.current = false;
+            hasExpiredRef.current = false;
+        } else if (endTime && dayjs().isBefore(dayjs(endTime))) {
+            // Use case: Admin adds more time to an expired session
+            hasExpiredRef.current = false;
         }
     }, [endTime, startTime]);
 
@@ -51,9 +54,10 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
                     // Check expiration for color/redness logic only
                     if (now.isAfter(end)) {
                         setIsExpired(true);
-                        if (!hasVibratedRef.current && navigator.vibrate) {
-                            navigator.vibrate([500, 200, 500]); // Vibrate pattern
-                            hasVibratedRef.current = true;
+                        if (!hasExpiredRef.current) {
+                            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+                            if (onExpire) onExpire();
+                            hasExpiredRef.current = true;
                         }
                     } else {
                         setIsExpired(false);
@@ -67,11 +71,10 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
                 if (diff <= 0) {
                     setIsExpired(true);
 
-                    if (!hasVibratedRef.current) {
-                        if (navigator.vibrate) {
-                            navigator.vibrate([500, 200, 500]); // Vibrate pattern
-                        }
-                        hasVibratedRef.current = true;
+                    if (!hasExpiredRef.current) {
+                        if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+                        if (onExpire) onExpire();
+                        hasExpiredRef.current = true;
                     }
 
                     const overtime = now.diff(end);
@@ -82,10 +85,6 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ endTime, startTime, 
                     setDisplayTime(`Hace ${hours > 0 ? String(hours).padStart(2, '0') + ':' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`);
                 } else {
                     setIsExpired(false);
-                    // Reset vibration if for some reason time was added and we are back to positive
-                    if (diff > 0) {
-                        hasVibratedRef.current = false;
-                    }
 
                     const dur = dayjs.duration(diff);
                     const hours = Math.floor(dur.asHours());

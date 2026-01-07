@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Computer } from '../types';
+import { useAuth } from './AuthContext';
+
 import { useSettings } from './SettingsContext';
 import { socket, connectSocket, disconnectSocket } from '../services/socket';
 
@@ -19,26 +21,48 @@ const ComputerContext = createContext<ComputerContextType | undefined>(undefined
 
 export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { pcCount } = useSettings();
+    const { token } = useAuth(); // Get token from AuthContext
     const [computers, setComputers] = useState<Computer[]>([]);
 
     useEffect(() => {
-        // Connect to socket (with auth token) when this component mounts
-        connectSocket();
+        // Only connect if we have a token
+        if (token) {
+            connectSocket();
+        } else {
+            disconnectSocket();
+            return; // Exit if no token
+        }
 
-        // Initialize/Sync with server
-        socket.emit('initialize-computers', pcCount);
+        const onConnect = () => {
+            console.log('Socket Connected!', socket.id);
+            socket.emit('initialize-computers', pcCount);
+        };
+
+        const onConnectError = (err: Error) => {
+            console.error('Socket Connection Error:', err.message);
+        };
 
         const onUpdate = (data: Computer[]) => {
+            console.log('Received computers update:', data.length);
             setComputers(data);
         };
 
+        socket.on('connect', onConnect);
+        socket.on('connect_error', onConnectError);
         socket.on('computers-update', onUpdate);
 
+        // If already connected (e.g. re-render), request data immediately
+        if (socket.connected) {
+            onConnect();
+        }
+
         return () => {
+            socket.off('connect', onConnect);
+            socket.off('connect_error', onConnectError);
             socket.off('computers-update', onUpdate);
-            disconnectSocket(); // Disconnect when user logs out/leaves
+            disconnectSocket();
         };
-    }, [pcCount]);
+    }, [pcCount, token]); // Re-run when token changes (login/logout)
 
     const startSession = (id: string, durationMinutes: number, customerName?: string, price?: number) => {
         socket.emit('start-session', { id, durationMinutes, customerName, price });
