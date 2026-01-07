@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Tag, Dropdown, Popconfirm, Flex, Tooltip, Space, notification } from 'antd';
 import type { MenuProps } from 'antd';
-import { DesktopOutlined, PlayCircleOutlined, StopOutlined, PlusOutlined, MoreOutlined, ToolOutlined, DollarOutlined, FieldTimeOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { DesktopOutlined, PlayCircleOutlined, StopOutlined, PlusOutlined, MoreOutlined, ToolOutlined, DollarOutlined, FieldTimeOutlined, ShoppingCartOutlined, EditOutlined, UserOutlined } from '@ant-design/icons';
 import type { Computer } from '../types';
 import { useComputers } from '../context/ComputerContext';
 import { useSettings } from '../context/SettingsContext';
@@ -9,6 +9,7 @@ import { TimerDisplay } from './TimerDisplay';
 import { SessionModal } from './SessionModal';
 import { MoveSessionModal } from './MoveSessionModal';
 import { AddExtraModal } from './AddExtraModal';
+import { EditNameModal } from './EditNameModal';
 import { ReceiptModal } from './ReceiptModal';
 import { SessionProgressBar } from './SessionProgressBar';
 import { calculatePrice, formatCurrency } from '../utils/pricing';
@@ -22,16 +23,30 @@ interface ComputerCardProps {
 }
 
 export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
-    const { startSession, startOpenSession, stopSession, addTime, toggleMaintenance, togglePaid } = useComputers();
+    const { startSession, startOpenSession, stopSession, addTime, toggleMaintenance, togglePaid, updateSession, updateCustomerName } = useComputers();
     const { priceRules, currencySymbol, viewMode } = useSettings();
     const [modalVisible, setModalVisible] = useState(false);
-    const [modalMode, setModalMode] = useState<'start' | 'add'>('start');
+    const [modalMode, setModalMode] = useState<'start' | 'add' | 'edit'>('start');
     const [moveModalVisible, setMoveModalVisible] = useState(false);
     const [extraModalVisible, setExtraModalVisible] = useState(false);
+    const [editNameModalVisible, setEditNameModalVisible] = useState(false);
     const [receiptVisible, setReceiptVisible] = useState(false);
 
     // Local state for current price
     const [currentPrice, setCurrentPrice] = useState<number>(0);
+
+    // Helper to get current elapsed minutes or total booked duration
+    const getCurrentDuration = () => {
+        if (!computer.startTime) return 0;
+
+        if (computer.mode === 'fixed' && computer.endTime) {
+            // If fixed, we want the TOTAL booked duration (e.g. 15 mins)
+            return dayjs(computer.endTime).diff(dayjs(computer.startTime), 'minute');
+        } else {
+            // If open, we want elapsed time
+            return dayjs().diff(dayjs(computer.startTime), 'minute');
+        }
+    };
 
     useEffect(() => {
         if (computer.status !== 'occupied') {
@@ -77,25 +92,41 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
         setModalVisible(true);
     };
 
-    const onModalConfirm = (minutes: number, customerName?: string) => {
+    const handleEditClick = () => {
+        setModalMode('edit');
+        setModalVisible(true);
+    };
+
+    const onModalConfirm = (minutes: number, customerName?: string, startTime?: number) => {
         if (modalMode === 'start') {
             if (minutes === -1) {
                 // Open mode
-                startOpenSession(computer.id, customerName);
+                startOpenSession(computer.id, customerName, startTime);
             } else {
                 // Fixed mode
                 const price = calculatePrice(minutes, priceRules);
-                startSession(computer.id, minutes, customerName, price);
+                startSession(computer.id, minutes, customerName, price, startTime);
             }
-        } else {
-            // Add time
+        } else if (modalMode === 'add') {
+            // Add time (extend fixed)
             if (computer.mode === 'fixed') {
-                const price = calculatePrice(minutes, priceRules); // Simplified price for added block
+                const price = calculatePrice(minutes, priceRules); // Simplified price for added block - logic is flawed in original addTime but we follow pattern
                 addTime(computer.id, minutes, price);
+            }
+        } else if (modalMode === 'edit') {
+            // Update session (Switch mode or change total duration)
+            if (minutes === -1) {
+                // Switch to Open
+                updateSession(computer.id, 'open');
+            } else {
+                // Switch/Update to Fixed
+                const price = calculatePrice(minutes, priceRules);
+                updateSession(computer.id, 'fixed', minutes, price);
             }
         }
         setModalVisible(false);
     };
+
 
     const handleStopClick = () => {
         setReceiptVisible(true);
@@ -117,6 +148,11 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
             label: 'Agregar Extra/Gasto',
             icon: <PlusOutlined />,
             onClick: () => setExtraModalVisible(true),
+        }, {
+            key: 'editName',
+            label: 'Editar Nombre',
+            icon: <UserOutlined />,
+            onClick: () => setEditNameModalVisible(true),
         }] : []),
         {
             key: 'maintenance',
@@ -177,15 +213,15 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
             <Card
                 hoverable
                 size="small"
-                styles={{ body: { padding: '10px' } }}
+                styles={{ body: { padding: '6px' } }}
                 style={{
                     borderTop: `3px solid ${getBorderColor(computer.status, computer.mode)}`,
                     opacity: computer.status === 'maintenance' ? 0.75 : 1,
                 }}
             >
                 {/* Header: Name and Status Badge */}
-                <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
+                <Flex justify="space-between" align="center" style={{ marginBottom: 4 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
                         <DesktopOutlined style={{ marginRight: 6, color: getBorderColor(computer.status, computer.mode) }} />
                         {computer.name}
                     </div>
@@ -212,8 +248,12 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
                 {computer.status === 'occupied' ? (
                     <div style={{ textAlign: 'center' }}>
                         {/* Customer Name */}
-                        <div style={{ fontSize: '12px', color: '#595959', marginBottom: 2, height: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {computer.customerName || 'Cliente'}
+                        <div
+                            style={{ fontSize: '12px', color: '#595959', marginBottom: 2, height: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                            onClick={() => setEditNameModalVisible(true)}
+                            title="Clic para editar nombre"
+                        >
+                            {computer.customerName || 'Cliente'} <EditOutlined style={{ fontSize: '10px', marginLeft: 4 }} />
                         </div>
 
                         {/* Timer */}
@@ -233,8 +273,8 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
                         )}
 
                         {/* Price & Extras */}
-                        <Flex justify="center" align="baseline" gap={2} style={{ marginTop: 2 }}>
-                            <span style={{ fontWeight: 'bold', color: '#faad14', fontSize: '16px' }}>
+                        <Flex justify="center" align="baseline" gap={2} style={{ marginTop: 0 }}>
+                            <span style={{ fontWeight: 'bold', color: '#faad14', fontSize: '15px' }}>
                                 {formatCurrency(total, currencySymbol)}
                             </span>
                         </Flex>
@@ -245,7 +285,10 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
                         )}
 
                         {/* Quick Actions Row */}
-                        <Flex gap="small" justify="center" style={{ marginTop: 8 }}>
+                        <Flex gap="small" justify="center" style={{ marginTop: 4 }}>
+                            <Tooltip title="Editar / Cambiar Tiempo">
+                                <Button size="small" icon={<EditOutlined />} onClick={handleEditClick} />
+                            </Tooltip>
                             {computer.mode === 'fixed' && (
                                 <Tooltip title="Añadir Tiempo">
                                     <Button size="small" icon={<FieldTimeOutlined />} onClick={handleAddClick} />
@@ -278,6 +321,7 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
                 onConfirm={onModalConfirm}
                 mode={modalMode}
                 computerName={computer.name}
+                currentDuration={getCurrentDuration()}
             />
 
             <MoveSessionModal
@@ -291,6 +335,14 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
                 visible={extraModalVisible}
                 onCancel={() => setExtraModalVisible(false)}
                 computerId={computer.id}
+                computerName={computer.name}
+            />
+
+            <EditNameModal
+                visible={editNameModalVisible}
+                onCancel={() => setEditNameModalVisible(false)}
+                onConfirm={(name) => { updateCustomerName(computer.id, name); setEditNameModalVisible(false); }}
+                currentName={computer.customerName || ''}
                 computerName={computer.name}
             />
 

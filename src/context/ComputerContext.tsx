@@ -7,8 +7,10 @@ import { socket, connectSocket, disconnectSocket } from '../services/socket';
 
 interface ComputerContextType {
     computers: Computer[];
-    startSession: (id: string, durationMinutes: number, customerName?: string, price?: number) => void;
-    startOpenSession: (id: string, customerName?: string) => void;
+    startSession: (id: string, durationMinutes: number, customerName?: string, price?: number, startTime?: number) => void;
+    startOpenSession: (id: string, customerName?: string, startTime?: number) => void;
+    updateSession: (id: string, newMode: 'fixed' | 'open', durationMinutes?: number, price?: number) => void;
+    updateCustomerName: (id: string, name: string) => void;
     stopSession: (id: string) => void;
     addTime: (id: string, minutes: number, price?: number) => void;
     toggleMaintenance: (id: string) => void;
@@ -64,12 +66,20 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
     }, [pcCount, token]); // Re-run when token changes (login/logout)
 
-    const startSession = (id: string, durationMinutes: number, customerName?: string, price?: number) => {
-        socket.emit('start-session', { id, durationMinutes, customerName, price });
+    const startSession = (id: string, durationMinutes: number, customerName?: string, price?: number, startTime?: number) => {
+        socket.emit('start-session', { id, durationMinutes, customerName, price, startTime });
     };
 
-    const startOpenSession = (id: string, customerName?: string) => {
-        socket.emit('start-open-session', { id, customerName });
+    const startOpenSession = (id: string, customerName?: string, startTime?: number) => {
+        socket.emit('start-open-session', { id, customerName, startTime });
+    };
+
+    const updateSession = (id: string, newMode: 'fixed' | 'open', durationMinutes?: number, price?: number) => {
+        socket.emit('update-session', { id, newMode, durationMinutes, price });
+    };
+
+    const updateCustomerName = (id: string, name: string) => {
+        socket.emit('update-customer-name', { id, name });
     };
 
     const stopSession = (id: string) => {
@@ -97,7 +107,7 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     return (
-        <ComputerContext.Provider value={{ computers, startSession, startOpenSession, stopSession, addTime, toggleMaintenance, moveSession, addExtra, togglePaid }}>
+        <ComputerContext.Provider value={{ computers, startSession, startOpenSession, stopSession, addTime, toggleMaintenance, moveSession, addExtra, togglePaid, updateSession, updateCustomerName }}>
             {children}
         </ComputerContext.Provider>
     );

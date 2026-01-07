@@ -3,41 +3,61 @@ import type { PriceRule } from "../context/SettingsContext";
 export const calculatePrice = (minutes: number, rules: PriceRule[]): number => {
     if (!rules || rules.length === 0) return 0;
 
-    // Sort rules by minutes descending to find the largest fitting chunk first?
-    // User requested: "if 15 in 15 it should sum 0.5 + 0.5"
-    // Requirement implies we should fit chunks. 
-    // Usually, the best match for exact time is preferred, else linear extrapolation or chunking.
+    // 1. Sort rules descending for Greedy approach
+    const sortedRulesDesc = [...rules].sort((a, b) => b.minutes - a.minutes);
+    const smallestRule = sortedRulesDesc[sortedRulesDesc.length - 1];
 
-    // Simple approach v1: Find exact match. If not, fallback to per-minute rate based on 15min lowest rule?
-    // Let's implement a "Best Fit" sum.
-    // e.g. 45 min. Rules: 15->0.5, 30->1.0. 
-    // Could be 30+15 = 1.5.
+    // Helper: Calculate price using Greedy Descent (Sum of Parts)
+    const calculateGreedy = (mins: number): number => {
+        if (mins <= 0) return 0;
 
-    // For "Open Mode", we recalculate every minute.
+        let remaining = mins;
+        let cost = 0;
 
-    // Let's optimize for: Explicit rules first.
-    const exactMatch = rules.find(r => r.minutes === minutes);
-    if (exactMatch) return exactMatch.price;
+        for (const rule of sortedRulesDesc) {
+            if (remaining >= rule.minutes) {
+                const count = Math.floor(remaining / rule.minutes);
+                cost += count * rule.price;
+                remaining %= rule.minutes;
+            }
+        }
 
-    // If no exact match (e.g. 7 minutes, or 45 minutes if 45 rule doesn't exist).
-    // User said: "15min is 0.50... But if adds 15 in 15 it should sum 0.5 + 0.5"
-    // This implies linear pricing based on the smallest unit usually.
+        // If there's still remainder, verify if we can cover it with smallest rule
+        if (remaining > 0) {
+            // Check if there is a "better fit" among smaller rules is overly complex.
+            // Standard approach: Charge the smallest unit for the remainder.
+            cost += smallestRule.price;
+        }
 
-    // Sort rules by duration ascending
-    const sortedRules = [...rules].sort((a, b) => a.minutes - b.minutes);
-    const baseRule = sortedRules[0]; // e.g., 15 min for 0.50
+        return cost;
+    };
 
-    if (!baseRule) return 0;
+    // 2. Initial calculation
+    let finalPrice = calculateGreedy(minutes);
 
-    // Calculate how many base units fit approx
-    // e.g. 20 mins. Base 15min. 
-    // Is 20 min = 15min + 5min? 
-    // Standard cyber cafe logic: Charge next block immediately. 
-    // 1-15 min = 0.50. 16-30 min = 1.00.
+    // 3. "Capping" / Upgrade Check
+    // Check if buying a larger "package" (rule) is cheaper than the calculated price
+    // e.g. 55 mins might cost 2.00 calculated, but 60 min rule is 1.50.
+    for (const rule of sortedRulesDesc) {
+        if (rule.minutes > minutes) {
+            if (rule.price < finalPrice) {
+                finalPrice = rule.price;
+            }
+        }
+    }
 
-    // Let's assume block billing.
-    const blocks = Math.ceil(minutes / baseRule.minutes);
-    return blocks * baseRule.price;
+    // 4. Double Check: Ensure monotonicity against the Greedy calc of the *Next Tier*
+    // Sometimes 55m -> 2.00. 60m Rule -> 1.50.
+    // What if 60m Rule didn't exist? But 30m was 1.00.
+    // 55m = 30(1.00) + 15(0.50) + 15(0.50) = 2.00.
+    // Is there a better combo? 2x30m = 2.00. Same.
+
+    // The previous loop handles explicit rules. 
+    // Is it possible that calculateGreedy(minutes + small_delta) is cheaper?
+    // e.g. Bulk discount logic not captured by explicit rules? 
+    // Assuming standard rules is sufficient.
+
+    return finalPrice;
 };
 
 export const formatCurrency = (amount: number, symbol: string = 'S/') => {

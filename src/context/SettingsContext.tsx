@@ -20,28 +20,29 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 const STORAGE_KEY_SETTINGS = 'lan_center_settings';
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [pcCount, setPcCountState] = useState<number>(10);
-    const [priceRules, setPriceRulesState] = useState<PriceRule[]>([
+    // Load initial settings from localStorage if available
+    const getInitialSettings = () => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (e) {
+            console.error("Failed to load settings", e);
+        }
+        return {};
+    };
+
+    const initialSettings = getInitialSettings();
+
+    const [pcCount, setPcCountState] = useState<number>(initialSettings.pcCount || 10);
+    const [priceRules, setPriceRulesState] = useState<PriceRule[]>(initialSettings.priceRules || [
         { minutes: 15, price: 0.50 },
         { minutes: 30, price: 1.00 },
         { minutes: 60, price: 1.50 },
     ]);
     const [currencySymbol] = useState('S/');
-    const [viewMode, setViewMode] = useState<'remaining' | 'elapsed'>('remaining');
-
-    useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.pcCount) setPcCountState(parsed.pcCount);
-                if (parsed.priceRules) setPriceRulesState(parsed.priceRules);
-                if (parsed.viewMode) setViewMode(parsed.viewMode);
-            } catch (e) {
-                console.error("Failed to load settings", e);
-            }
-        }
-    }, []);
+    const [viewMode, setViewMode] = useState<'remaining' | 'elapsed'>(initialSettings.viewMode || 'remaining');
 
     useEffect(() => {
         localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify({ pcCount, priceRules, viewMode }));

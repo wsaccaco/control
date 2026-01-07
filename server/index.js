@@ -68,13 +68,13 @@ io.on('connection', (socket) => {
         io.emit('computers-update', db.getComputers());
     });
 
-    socket.on('start-session', ({ id, durationMinutes, customerName, price }) => {
-        db.startSession(id, durationMinutes, customerName, price);
+    socket.on('start-session', ({ id, durationMinutes, customerName, price, startTime }) => {
+        db.startSession(id, durationMinutes, customerName, price, startTime);
         io.emit('computers-update', db.getComputers());
     });
 
-    socket.on('start-open-session', ({ id, customerName }) => {
-        db.startOpenSession(id, customerName);
+    socket.on('start-open-session', ({ id, customerName, startTime }) => {
+        db.startOpenSession(id, customerName, startTime);
         io.emit('computers-update', db.getComputers());
     });
 
@@ -105,6 +105,16 @@ io.on('connection', (socket) => {
 
     socket.on('move-session', ({ fromId, toId }) => {
         db.moveSession(fromId, toId);
+        io.emit('computers-update', db.getComputers());
+    });
+
+    socket.on('update-session', ({ id, newMode, durationMinutes, price }) => {
+        db.updateSession(id, newMode, durationMinutes, price);
+        io.emit('computers-update', db.getComputers());
+    });
+
+    socket.on('update-customer-name', ({ id, name }) => {
+        db.updateCustomerName(id, name);
         io.emit('computers-update', db.getComputers());
     });
 

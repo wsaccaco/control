@@ -109,8 +109,8 @@ const ensureComputersExist = (count) => {
     }
 };
 
-const startSession = (computerId, durationMinutes, customerName, price) => {
-    const now = Date.now();
+const startSession = (computerId, durationMinutes, customerName, price, startTime) => {
+    const now = startTime || Date.now();
     const endTime = now + durationMinutes * 60000;
 
     const trans = db.transaction(() => {
@@ -132,8 +132,8 @@ const startSession = (computerId, durationMinutes, customerName, price) => {
     trans();
 };
 
-const startOpenSession = (computerId, customerName) => {
-    const now = Date.now();
+const startOpenSession = (computerId, customerName, startTime) => {
+    const now = startTime || Date.now();
 
     const trans = db.transaction(() => {
         db.prepare('UPDATE computers SET status = ? WHERE id = ?').run('occupied', computerId);
@@ -254,6 +254,53 @@ const moveSession = (fromId, toId) => {
 };
 
 
+const updateSession = (computerId, newMode, durationMinutes, price) => {
+    const now = Date.now();
+    const trans = db.transaction(() => {
+        const session = db.prepare('SELECT * FROM sessions WHERE computer_id = ? AND active = 1').get(computerId);
+        if (!session) return;
+
+        // FIXED -> FIXED (Update duration/price)
+        if (session.mode === 'fixed' && newMode === 'fixed') {
+            const newEndTime = session.start_time + (durationMinutes * 60000);
+            db.prepare('UPDATE sessions SET expected_end_time = ?, price = ? WHERE id = ?').run(newEndTime, price, session.id);
+
+            db.prepare(`
+                INSERT INTO session_events (session_id, type, description, minutes, price, time)
+                VALUES (?, 'update', ?, ?, ?, ?)
+            `).run(session.id, `Actualizado a ${durationMinutes} min`, durationMinutes, price, now);
+        }
+
+        // FIXED -> OPEN (Switch to Open)
+        else if (session.mode === 'fixed' && newMode === 'open') {
+            db.prepare('UPDATE sessions SET mode = ?, expected_end_time = NULL, price = 0 WHERE id = ?').run('open', session.id);
+
+            db.prepare(`
+                INSERT INTO session_events (session_id, type, description, price, time)
+                VALUES (?, 'update', 'Cambiado a Tiempo Libre', 0, ?)
+            `).run(session.id, now);
+        }
+
+        // OPEN -> FIXED (Switch to Fixed)
+        else if (session.mode === 'open' && newMode === 'fixed') {
+            const newEndTime = session.start_time + (durationMinutes * 60000);
+            db.prepare('UPDATE sessions SET mode = ?, expected_end_time = ?, price = ? WHERE id = ?').run('fixed', newEndTime, price, session.id);
+
+            db.prepare(`
+                INSERT INTO session_events (session_id, type, description, minutes, price, time)
+                VALUES (?, 'update', ?, ?, ?, ?)
+            `).run(session.id, `Cambiado a Fijo (${durationMinutes} min)`, durationMinutes, price, now);
+        }
+    });
+    trans();
+};
+
+const updateCustomerName = (computerId, newName) => {
+    const session = db.prepare('SELECT id FROM sessions WHERE computer_id = ? AND active = 1').get(computerId);
+    if (!session) return;
+    db.prepare('UPDATE sessions SET customer_name = ? WHERE id = ?').run(newName, session.id);
+};
+
 module.exports = {
     init,
     getComputers,
@@ -265,5 +312,7 @@ module.exports = {
     addExtra,
     togglePaid,
     toggleMaintenance,
-    moveSession
+    moveSession,
+    updateSession,
+    updateCustomerName
 };
