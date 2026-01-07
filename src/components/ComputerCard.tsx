@@ -139,21 +139,27 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
 
     const handleExpiration = () => {
         // 1. Native Browser Notification
-        const showNotification = () => {
-            new Notification('Tiempo Terminado', {
-                body: `El tiempo de ${computer.name} ha finalizado.`,
-                icon: '/icon.png' // Optional: if you have an icon
-            });
-        };
+        try {
+            if ('Notification' in window) {
+                const showNotification = () => {
+                    new Notification('Tiempo Terminado', {
+                        body: `El tiempo de ${computer.name} ha finalizado.`,
+                        icon: '/icon.png'
+                    });
+                };
 
-        if (Notification.permission === 'granted') {
-            showNotification();
-        } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
+                if (Notification.permission === 'granted') {
                     showNotification();
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            showNotification();
+                        }
+                    }).catch(err => console.error("Notification permission error:", err));
                 }
-            });
+            }
+        } catch (e) {
+            console.error("Notification API error:", e);
         }
 
         // 2. Play Sound

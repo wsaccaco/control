@@ -29,10 +29,10 @@ export const Dashboard: React.FC = () => {
 
     return (
         <div className="dashboard-container">
-            <div className="dashboard-header">
-                <div className="dashboard-title-area">
+            <div className="dashboard-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                <div className="dashboard-title-area" style={{ flex: '1 1 auto', minWidth: '300px' }}>
                     <Title level={2} style={{ margin: 0 }}>Panel de Control</Title>
-                    <div className="dashboard-stats">
+                    <div className="dashboard-stats" style={{ marginTop: '5px' }}>
                         <span
                             style={{ cursor: 'pointer', opacity: statusFilter === 'all' || statusFilter === 'available' ? 1 : 0.3, fontWeight: statusFilter === 'available' ? 'bold' : 'normal' }}
                             onClick={() => handleFilterClick('available')}
@@ -55,22 +55,25 @@ export const Dashboard: React.FC = () => {
                         </span>
                     </div>
                 </div>
-                <div className="dashboard-controls">
-                    <Space size={8}>
-                        {Notification.permission === 'default' && (
-                            <Button
-                                type="dashed"
-                                icon={<BellOutlined />}
-                                onClick={() => {
-                                    Notification.requestPermission().then(() => {
-                                        // Force re-render just in case
-                                        navigate(0);
-                                    });
-                                }}
-                            >
-                                Activar Notificaciones
-                            </Button>
-                        )}
+
+                <div className="dashboard-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
+                    {/* Notification Button - Only show if supported and permission is default */}
+                    {'Notification' in window && Notification.permission === 'default' && (
+                        <Button
+                            type="dashed"
+                            icon={<BellOutlined />}
+                            onClick={() => {
+                                Notification.requestPermission().then(() => {
+                                    navigate(0);
+                                });
+                            }}
+                            size="small"
+                        >
+                            Activar Alertas
+                        </Button>
+                    )}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Text strong>Vista:</Text>
                         <Switch
                             checkedChildren="Transcurrido"
@@ -78,8 +81,9 @@ export const Dashboard: React.FC = () => {
                             checked={viewMode === 'elapsed'}
                             onChange={toggleViewMode}
                         />
-                    </Space>
-                    <Button icon={<SettingOutlined />} onClick={() => navigate('/settings')}>Configuración</Button>
+                    </div>
+
+                    <Button icon={<SettingOutlined />} onClick={() => navigate('/settings')}>Configurar</Button>
                 </div>
             </div>
 
