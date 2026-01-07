@@ -5,12 +5,13 @@ WORKDIR /app
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
 
-# Standard copy (Assumes context is /server)
-COPY package*.json ./
+# Explicitly copy server package.json from the ROOT context
+COPY server/package*.json ./
 
 RUN npm install
 
-COPY . .
+# Explicitly copy all server source code from the ROOT context
+COPY server/ .
 
 EXPOSE 3000
 
