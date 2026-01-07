@@ -1,6 +1,6 @@
 import React from 'react';
 import { Row, Col, Typography, Space, Button, Switch } from 'antd';
-import { SettingOutlined } from '@ant-design/icons';
+import { SettingOutlined, BellOutlined } from '@ant-design/icons';
 import { useComputers } from '../context/ComputerContext';
 import { useSettings } from '../context/SettingsContext';
 import { ComputerCard } from '../components/ComputerCard';
@@ -57,6 +57,20 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <div className="dashboard-controls">
                     <Space size={8}>
+                        {Notification.permission === 'default' && (
+                            <Button
+                                type="dashed"
+                                icon={<BellOutlined />}
+                                onClick={() => {
+                                    Notification.requestPermission().then(() => {
+                                        // Force re-render just in case
+                                        navigate(0);
+                                    });
+                                }}
+                            >
+                                Activar Notificaciones
+                            </Button>
+                        )}
                         <Text strong>Vista:</Text>
                         <Switch
                             checkedChildren="Transcurrido"
