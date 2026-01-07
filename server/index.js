@@ -8,6 +8,10 @@ const db = require('./db');
 
 app.use(cors());
 
+app.get('/', (req, res) => {
+    res.send('LAN Center API is running correctly 🚀');
+});
+
 // Initialize DB
 db.init();
 
