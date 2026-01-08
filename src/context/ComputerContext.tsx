@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Computer } from '../types';
-import { useAuth } from './AuthContext';
+// import { useAuth } from './AuthContext';
 
 import { useSettings } from './SettingsContext';
 import { socket, connectSocket, disconnectSocket } from '../services/socket';
@@ -23,21 +23,18 @@ const ComputerContext = createContext<ComputerContextType | undefined>(undefined
 
 export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { pcCount } = useSettings();
-    const { token } = useAuth(); // Get token from AuthContext
+    // const { token } = useAuth(); // Deprecated
     const [computers, setComputers] = useState<Computer[]>([]);
 
     useEffect(() => {
-        // Only connect if we have a token
-        if (token) {
-            connectSocket();
-        } else {
-            disconnectSocket();
-            return; // Exit if no token
-        }
+        // Connect to socket
+        connectSocket();
 
         const onConnect = () => {
             console.log('Socket Connected!', socket.id);
-            socket.emit('initialize-computers', pcCount);
+            if (pcCount > 0) {
+                socket.emit('initialize-computers', pcCount);
+            }
         };
 
         const onConnectError = (err: Error) => {
@@ -64,7 +61,7 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             socket.off('computers-update', onUpdate);
             disconnectSocket();
         };
-    }, [pcCount, token]); // Re-run when token changes (login/logout)
+    }, [pcCount]); // Removed token dependency
 
     const startSession = (id: string, durationMinutes: number, customerName?: string, price?: number, startTime?: number) => {
         socket.emit('start-session', { id, durationMinutes, customerName, price, startTime });

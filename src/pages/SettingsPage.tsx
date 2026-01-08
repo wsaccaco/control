@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, InputNumber, Button, Table, Typography, message, Card } from 'antd';
+import { Form, Input, InputNumber, Button, Table, Typography, message, Card } from 'antd';
 import { DeleteOutlined, PlusOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useSettings } from '../context/SettingsContext';
 import type { PriceRule } from '../context/SettingsContext';
@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 const { Text } = Typography;
 
 export const SettingsPage: React.FC = () => {
-    const { pcCount, setPcCount, priceRules, setPriceRules, currencySymbol } = useSettings();
+    const { pcCount, setPcCount, priceRules, setPriceRules, currencySymbol, generalSettings, updateGeneralSettings } = useSettings();
     const navigate = useNavigate();
     const [form] = Form.useForm();
 
@@ -17,13 +17,21 @@ export const SettingsPage: React.FC = () => {
 
     useEffect(() => {
         setLocalRules(priceRules);
-        form.setFieldsValue({ pcCount });
-    }, [priceRules, pcCount, form]);
+        form.setFieldsValue({
+            pcCount,
+            name: generalSettings?.lan_center_name || '',
+            currency: generalSettings?.currency_symbol || 'S/'
+        });
+    }, [priceRules, pcCount, generalSettings, form]);
 
     const handleSave = () => {
         form.validateFields().then(values => {
             setPcCount(values.pcCount);
             setPriceRules(localRules);
+            updateGeneralSettings({
+                lan_center_name: values.name,
+                currency_symbol: values.currency
+            });
             message.success('Configuración guardada correctamente');
         }).catch(() => {
             message.error('Por favor revisa los campos');
@@ -87,6 +95,22 @@ export const SettingsPage: React.FC = () => {
 
             <Card title="Configuración General">
                 <Form form={form} layout="vertical">
+                    <Form.Item
+                        label="Nombre del Lan Center"
+                        name="name"
+                        rules={[{ required: true, message: 'Ingresa el nombre' }]}
+                    >
+                        <Input placeholder="Ej: Matrix Gaming" />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Símbolo de Moneda"
+                        name="currency"
+                        rules={[{ required: true, message: 'Ingresa el símbolo' }]}
+                    >
+                        <Input placeholder="S/" />
+                    </Form.Item>
+
                     <Form.Item
                         label="Cantidad de Computadoras"
                         name="pcCount"

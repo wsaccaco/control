@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+server/lan_center.db
 
 node_modules
 dist
@@ -24,3 +25,8 @@ dist-ssr
 *.sw?
 .env
 server/.env
+lan_center.db
+coverage
+.gemini
+check_users.js
+check_users.cjs
