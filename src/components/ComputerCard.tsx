@@ -22,7 +22,7 @@ interface ComputerCardProps {
     computer: Computer;
 }
 
-export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
+export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
     const { startSession, startOpenSession, stopSession, addTime, toggleMaintenance, togglePaid, updateSession, updateCustomerName } = useComputers();
     const { priceRules, currencySymbol, viewMode } = useSettings();
     const [modalVisible, setModalVisible] = useState(false);
@@ -356,3 +356,24 @@ export const ComputerCard: React.FC<ComputerCardProps> = ({ computer }) => {
         </>
     );
 };
+
+const arePropsEqual = (prevProps: ComputerCardProps, nextProps: ComputerCardProps) => {
+    const p = prevProps.computer;
+    const n = nextProps.computer;
+
+    if (p.id !== n.id) return false;
+    if (p.status !== n.status) return false;
+    if (p.mode !== n.mode) return false;
+    if (p.startTime !== n.startTime) return false;
+    if (p.endTime !== n.endTime) return false;
+    if (p.customerName !== n.customerName) return false;
+    if (p.isPaid !== n.isPaid) return false;
+
+    // Deep check extras (length and content)
+    if (p.extras?.length !== n.extras?.length) return false;
+    if (JSON.stringify(p.extras) !== JSON.stringify(n.extras)) return false;
+
+    return true; // Props are "visually" equal, do not re-render
+};
+
+export const ComputerCard = React.memo(ComputerCardBase, arePropsEqual);
