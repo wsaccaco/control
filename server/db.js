@@ -1,5 +1,15 @@
 const Database = require('better-sqlite3');
-const db = new Database('lan_center.db', { verbose: console.log });
+const path = require('path');
+const fs = require('fs');
+
+// Ensure data directory exists for better volume mounting (Docker/Coolify)
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir);
+}
+
+const dbPath = path.join(dataDir, 'lan_center.db');
+const db = new Database(dbPath, { verbose: console.log });
 const bcrypt = require('bcryptjs');
 
 // Initialize tables
