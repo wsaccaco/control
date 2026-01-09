@@ -181,8 +181,8 @@ io.on('connection', (socket) => {
         emitUpdate();
     });
 
-    socket.on('stop-session', ({ id }) => {
-        db.stopSession(userId, id);
+    socket.on('stop-session', ({ id, price }) => {
+        db.stopSession(userId, id, price);
         emitUpdate();
     });
 
@@ -221,6 +221,11 @@ io.on('connection', (socket) => {
         emitUpdate();
     });
 
+    socket.on('update-computer-zone', ({ id, zoneId }) => {
+        db.updateComputerZone(userId, id, zoneId);
+        emitUpdate();
+    });
+
     // Settings Handlers
     socket.on('get-settings', (callback) => {
         if (callback) callback(db.getSettings(userId));
@@ -229,6 +234,14 @@ io.on('connection', (socket) => {
     socket.on('update-settings', (newSettings) => {
         db.updateSettings(userId, newSettings);
         io.to(userId).emit('settings-update', db.getSettings(userId));
+    });
+
+    socket.on('get-daily-revenue', (callback) => {
+        if (callback) callback(db.getDailyRevenue(userId));
+    });
+
+    socket.on('get-computer-history', ({ computerId }, callback) => {
+        if (callback) callback(db.getComputerHistory(userId, computerId));
     });
 
     socket.on('disconnect', () => {

@@ -11,12 +11,15 @@ interface ComputerContextType {
     startOpenSession: (id: string, customerName?: string, startTime?: number) => void;
     updateSession: (id: string, newMode: 'fixed' | 'open', durationMinutes?: number, price?: number) => void;
     updateCustomerName: (id: string, name: string) => void;
-    stopSession: (id: string) => void;
+    stopSession: (id: string, price?: number) => void;
     addTime: (id: string, minutes: number, price?: number) => void;
     toggleMaintenance: (id: string) => void;
     moveSession: (fromId: string, toId: string) => void;
     addExtra: (id: string, name: string, price: number) => void;
     togglePaid: (id: string) => void;
+    updateZone: (id: string, zoneId: string) => void;
+    getDailyRevenue: () => Promise<{ total: number }>;
+    getComputerHistory: (id: string) => Promise<any[]>;
 }
 
 const ComputerContext = createContext<ComputerContextType | undefined>(undefined);
@@ -79,8 +82,8 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         socket.emit('update-customer-name', { id, name });
     };
 
-    const stopSession = (id: string) => {
-        socket.emit('stop-session', { id });
+    const stopSession = (id: string, price?: number) => {
+        socket.emit('stop-session', { id, price });
     };
 
     const addTime = (id: string, minutes: number, price?: number) => {
@@ -103,8 +106,28 @@ export const ComputerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         socket.emit('move-session', { fromId, toId });
     };
 
+    const updateZone = (id: string, zoneId: string) => {
+        socket.emit('update-computer-zone', { id, zoneId });
+    };
+
+    const getDailyRevenue = (): Promise<{ total: number }> => {
+        return new Promise((resolve) => {
+            socket.emit('get-daily-revenue', (data: { total: number }) => {
+                resolve(data);
+            });
+        });
+    };
+
+    const getComputerHistory = (id: string): Promise<any[]> => {
+        return new Promise((resolve) => {
+            socket.emit('get-computer-history', { computerId: id }, (data: any[]) => {
+                resolve(data);
+            });
+        });
+    };
+
     return (
-        <ComputerContext.Provider value={{ computers, startSession, startOpenSession, stopSession, addTime, toggleMaintenance, moveSession, addExtra, togglePaid, updateSession, updateCustomerName }}>
+        <ComputerContext.Provider value={{ computers, startSession, startOpenSession, stopSession, addTime, toggleMaintenance, moveSession, addExtra, togglePaid, updateSession, updateCustomerName, updateZone, getDailyRevenue, getComputerHistory }}>
             {children}
         </ComputerContext.Provider>
     );

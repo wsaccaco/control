@@ -25,10 +25,18 @@ function init() {
             user_id TEXT, -- Tenant ID
             name TEXT NOT NULL,
             status TEXT DEFAULT 'available', -- available, occupied, maintenance
+            zone_id TEXT,
             PRIMARY KEY (id, user_id),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
     `);
+
+    // Migration for existing tables
+    try {
+        db.exec("ALTER TABLE computers ADD COLUMN zone_id TEXT");
+    } catch (e) {
+        // Column likely exists
+    }
 
     // Sessions table: History of usage
     db.exec(`
@@ -138,7 +146,8 @@ const updateSettings = (userId, newSettings) => {
     const insert = db.prepare('INSERT OR REPLACE INTO settings (key, user_id, value) VALUES (?, ?, ?)');
     const trans = db.transaction((data) => {
         for (const [key, value] of Object.entries(data)) {
-            insert.run(key, userId, String(value));
+            const valToStore = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            insert.run(key, userId, valToStore);
         }
     });
     trans(newSettings);
@@ -173,14 +182,17 @@ const getComputers = (userId) => {
                 endTime: session.expected_end_time,
                 customerName: session.customer_name,
                 isPaid: !!session.is_paid,
+                price: session.price,
                 extras: extras,
-                history: events
+                history: events,
+                zoneId: pc.zone_id
             };
         } else {
             return {
                 id: pc.id,
                 name: pc.name,
-                status: pc.status
+                status: pc.status,
+                zoneId: pc.zone_id
             };
         }
     });
@@ -244,12 +256,21 @@ const startOpenSession = (userId, computerId, customerName, startTime) => {
     trans();
 };
 
-const stopSession = (userId, computerId) => {
+const stopSession = (userId, computerId, price) => {
     const now = Date.now();
     const trans = db.transaction(() => {
-        const session = db.prepare('SELECT id FROM sessions WHERE computer_id = ? AND user_id = ? AND active = 1').get(computerId, userId);
+        const session = db.prepare('SELECT id, price, mode FROM sessions WHERE computer_id = ? AND user_id = ? AND active = 1').get(computerId, userId);
         if (session) {
-            db.prepare('UPDATE sessions SET active = 0, actual_end_time = ? WHERE id = ?').run(now, session.id);
+            // Update price if provided (crucial for Open sessions), otherwise keep existing
+            const finalPrice = (price !== undefined && price !== null) ? price : session.price;
+
+            db.prepare('UPDATE sessions SET active = 0, actual_end_time = ?, price = ? WHERE id = ?').run(now, finalPrice, session.id);
+
+            // Record stop event
+            db.prepare(`
+                INSERT INTO session_events (user_id, session_id, type, description, price, time)
+                VALUES (?, ?, 'stop', 'Fin de Sesión', ?, ?)
+            `).run(userId, session.id, finalPrice, now);
         }
         db.prepare('UPDATE computers SET status = ? WHERE id = ? AND user_id = ?').run('available', computerId, userId);
     });
@@ -376,6 +397,37 @@ const updateCustomerName = (userId, computerId, newName) => {
     db.prepare('UPDATE sessions SET customer_name = ? WHERE id = ?').run(newName, session.id);
 };
 
+const updateComputerZone = (userId, computerId, zoneId) => {
+    db.prepare('UPDATE computers SET zone_id = ? WHERE id = ? AND user_id = ?').run(zoneId, computerId, userId);
+};
+
+const getDailyRevenue = (userId) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.getTime();
+
+    const sessionRevenue = db.prepare('SELECT SUM(price) as total FROM sessions WHERE user_id = ? AND start_time >= ?').get(userId, startOfDay).total || 0;
+    const extrasRevenue = db.prepare('SELECT SUM(price) as total FROM extras WHERE user_id = ? AND time >= ?').get(userId, startOfDay).total || 0;
+
+    return { total: sessionRevenue + extrasRevenue };
+};
+
+const getComputerHistory = (userId, computerId) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.getTime();
+
+    // Get sessions started today
+    const sessions = db.prepare(`
+        SELECT id, start_time, actual_end_time, customer_name, mode, price 
+        FROM sessions 
+        WHERE user_id = ? AND computer_id = ? AND start_time >= ? 
+        ORDER BY start_time DESC
+    `).all(userId, computerId, startOfDay);
+
+    return sessions;
+};
+
 module.exports = {
     init,
     createUser,
@@ -396,5 +448,8 @@ module.exports = {
     updateSettings,
     getAllUsers,
     updateUserStatus,
-    getUserById
+    getUserById,
+    updateComputerZone,
+    getDailyRevenue,
+    getComputerHistory
 };

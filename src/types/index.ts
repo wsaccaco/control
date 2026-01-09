@@ -9,6 +9,7 @@ export interface Computer {
     endTime?: number;   // timestamp in ms
     notes?: string;
     customerName?: string;
+    price?: number;
     extras?: {
         id: string;
         name: string;
@@ -23,6 +24,7 @@ export interface Computer {
         description?: string; // e.g., "Soda", "Start 1h"
     }[];
     isPaid?: boolean;
+    zoneId?: string;
 }
 
 export interface Promotion {

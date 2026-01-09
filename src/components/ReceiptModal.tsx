@@ -8,7 +8,7 @@ import dayjs from 'dayjs';
 interface ReceiptModalProps {
     visible: boolean;
     onCancel: () => void;
-    onConfirm: () => void;
+    onConfirm: (price: number) => void;
     computer: Computer;
     finalDurationPrice: number;
 }
@@ -85,7 +85,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ visible, onCancel, o
                 )}
 
                 <Flex gap="small" vertical>
-                    <Button type="primary" size="large" block icon={<CheckCircleOutlined />} onClick={onConfirm} style={{ height: '50px', fontSize: '18px' }}>
+                    <Button type="primary" size="large" block icon={<CheckCircleOutlined />} onClick={() => onConfirm(finalDurationPrice)} style={{ height: '50px', fontSize: '18px' }}>
                         COBRAR Y FINALIZAR
                     </Button>
                     <Button block onClick={onCancel}>

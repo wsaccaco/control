@@ -1,9 +1,13 @@
 import type { PriceRule } from "../context/SettingsContext";
 
-export const calculatePrice = (minutes: number, rules: PriceRule[]): number => {
+export const calculatePrice = (minutes: number, rules: PriceRule[], tolerance: number = 0): number => {
     if (!rules || rules.length === 0) return 0;
 
-    // 1. Sort rules descending for Greedy approach
+    // 0. Apply Tolerance
+    const effectiveMinutes = Math.max(0, minutes - tolerance);
+    if (effectiveMinutes === 0) return 0;
+
+    // 1. Sort rules descending for greedy approach
     const sortedRulesDesc = [...rules].sort((a, b) => b.minutes - a.minutes);
     const smallestRule = sortedRulesDesc[sortedRulesDesc.length - 1];
 
@@ -22,10 +26,8 @@ export const calculatePrice = (minutes: number, rules: PriceRule[]): number => {
             }
         }
 
-        // If there's still remainder, verify if we can cover it with smallest rule
+        // If there's still remainder, charge the smallest unit
         if (remaining > 0) {
-            // Check if there is a "better fit" among smaller rules is overly complex.
-            // Standard approach: Charge the smallest unit for the remainder.
             cost += smallestRule.price;
         }
 
@@ -33,29 +35,17 @@ export const calculatePrice = (minutes: number, rules: PriceRule[]): number => {
     };
 
     // 2. Initial calculation
-    let finalPrice = calculateGreedy(minutes);
+    let finalPrice = calculateGreedy(effectiveMinutes);
 
-    // 3. "Capping" / Upgrade Check
-    // Check if buying a larger "package" (rule) is cheaper than the calculated price
-    // e.g. 55 mins might cost 2.00 calculated, but 60 min rule is 1.50.
+    // 3. Optimization: Check "Next Tier"
+    // Does a larger rule cost LESS than the greedy calculation of smaller parts?
     for (const rule of sortedRulesDesc) {
-        if (rule.minutes > minutes) {
+        if (rule.minutes >= effectiveMinutes) {
             if (rule.price < finalPrice) {
                 finalPrice = rule.price;
             }
         }
     }
-
-    // 4. Double Check: Ensure monotonicity against the Greedy calc of the *Next Tier*
-    // Sometimes 55m -> 2.00. 60m Rule -> 1.50.
-    // What if 60m Rule didn't exist? But 30m was 1.00.
-    // 55m = 30(1.00) + 15(0.50) + 15(0.50) = 2.00.
-    // Is there a better combo? 2x30m = 2.00. Same.
-
-    // The previous loop handles explicit rules. 
-    // Is it possible that calculateGreedy(minutes + small_delta) is cheaper?
-    // e.g. Bulk discount logic not captured by explicit rules? 
-    // Assuming standard rules is sufficient.
 
     return finalPrice;
 };

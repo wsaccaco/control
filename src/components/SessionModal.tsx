@@ -6,6 +6,8 @@ import dayjs from 'dayjs';
 
 const { Text } = Typography;
 
+import type { PriceRule } from '../context/SettingsContext';
+
 interface SessionModalProps {
     visible: boolean;
     onCancel: () => void;
@@ -13,10 +15,12 @@ interface SessionModalProps {
     mode: 'start' | 'add' | 'edit';
     computerName: string;
     currentDuration?: number;
+    priceRules: PriceRule[];
+    tolerance?: number;
 }
 
-export const SessionModal: React.FC<SessionModalProps> = ({ visible, onCancel, onConfirm, mode, computerName, currentDuration = 0 }) => {
-    const { priceRules, currencySymbol } = useSettings();
+export const SessionModal: React.FC<SessionModalProps> = ({ visible, onCancel, onConfirm, mode, computerName, currentDuration = 0, priceRules = [], tolerance = 0 }) => {
+    const { currencySymbol } = useSettings();
     const [duration, setDuration] = useState<number>(60);
     const [customDuration, setCustomDuration] = useState<number | null>(null);
     const [customerName, setCustomerName] = useState<string>('');

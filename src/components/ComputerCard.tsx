@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Tag, Dropdown, Popconfirm, Flex, Tooltip, Space, notification } from 'antd';
 import type { MenuProps } from 'antd';
-import { DesktopOutlined, PlayCircleOutlined, StopOutlined, PlusOutlined, MoreOutlined, ToolOutlined, DollarOutlined, FieldTimeOutlined, ShoppingCartOutlined, EditOutlined, UserOutlined } from '@ant-design/icons';
+import { DesktopOutlined, PlayCircleOutlined, StopOutlined, PlusOutlined, MoreOutlined, ToolOutlined, DollarOutlined, FieldTimeOutlined, ShoppingCartOutlined, EditOutlined, UserOutlined, EnvironmentOutlined, HistoryOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import type { Computer } from '../types';
 import { useComputers } from '../context/ComputerContext';
 import { useSettings } from '../context/SettingsContext';
@@ -11,6 +11,8 @@ import { MoveSessionModal } from './MoveSessionModal';
 import { AddExtraModal } from './AddExtraModal';
 import { EditNameModal } from './EditNameModal';
 import { ReceiptModal } from './ReceiptModal';
+import { AssignZoneModal } from './AssignZoneModal';
+import { HistoryModal } from './HistoryModal';
 import { SessionProgressBar } from './SessionProgressBar';
 import { calculatePrice, formatCurrency } from '../utils/pricing';
 import dayjs from 'dayjs';
@@ -23,13 +25,20 @@ interface ComputerCardProps {
 }
 
 export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
-    const { startSession, startOpenSession, stopSession, addTime, toggleMaintenance, togglePaid, updateSession, updateCustomerName } = useComputers();
-    const { priceRules, currencySymbol, viewMode } = useSettings();
+    const { startSession, startOpenSession, stopSession, addTime, toggleMaintenance, togglePaid, updateSession, updateCustomerName, updateZone } = useComputers();
+    const { getZoneById, currencySymbol, viewMode, generalSettings } = useSettings();
+
+    const zone = getZoneById(computer.zoneId);
+    const priceRules = zone.rules;
+    const tolerance = zone.tolerance;
+
     const [modalVisible, setModalVisible] = useState(false);
     const [modalMode, setModalMode] = useState<'start' | 'add' | 'edit'>('start');
     const [moveModalVisible, setMoveModalVisible] = useState(false);
     const [extraModalVisible, setExtraModalVisible] = useState(false);
     const [editNameModalVisible, setEditNameModalVisible] = useState(false);
+    const [assignZoneModalVisible, setAssignZoneModalVisible] = useState(false);
+    const [historyModalVisible, setHistoryModalVisible] = useState(false);
     const [receiptVisible, setReceiptVisible] = useState(false);
 
     // Local state for current price
@@ -55,31 +64,30 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
         }
 
         const updatePrice = () => {
-            let minutes = 0;
-            if (computer.mode === 'fixed' && computer.endTime && computer.startTime) {
-                // Fixed price is based on total duration requested, NOT elapsed time?
-                // Usually user pays for 1h upfront. So price is fixed.
-                // OR does the user want "Price so far"? 
-                // "se debe mostrar el precio que va hasta el momento" -> ambiguous. 
-                // If I buy 1 hour, I owe 1.50 immediately.
+            if (computer.mode === 'fixed') {
+                // For fixed sessions, we MUST use the stored price to respect the "Cumulative" strategy.
+                // If we recalculate here based on total duration, we would effectively force "Best Price" logic visually.
+                if (computer.price !== undefined) {
+                    setCurrentPrice(computer.price);
+                    return;
+                }
 
-                // Let's assume price based on Total Duration of the session.
-                const totalDuration = dayjs(computer.endTime).diff(dayjs(computer.startTime), 'minute');
-                minutes = totalDuration;
+                // Fallback (only if price is missing)
+                if (computer.endTime && computer.startTime) {
+                    const totalDuration = dayjs(computer.endTime).diff(dayjs(computer.startTime), 'minute');
+                    setCurrentPrice(calculatePrice(totalDuration, priceRules, tolerance));
+                }
             } else if (computer.mode === 'open' && computer.startTime) {
                 const elapsed = dayjs().diff(dayjs(computer.startTime), 'minute');
-                minutes = elapsed;
+                const price = calculatePrice(elapsed, priceRules, tolerance);
+                setCurrentPrice(price);
             }
-
-            // Calculate price based on these minutes
-            const price = calculatePrice(minutes, priceRules);
-            setCurrentPrice(price);
         };
 
         updatePrice();
         const interval = setInterval(updatePrice, 1000 * 60); // Update every minute
         return () => clearInterval(interval);
-    }, [computer, priceRules]);
+    }, [computer, priceRules, tolerance, zone]);
 
 
     const handleStartClick = () => {
@@ -104,14 +112,26 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                 startOpenSession(computer.id, customerName, startTime);
             } else {
                 // Fixed mode
-                const price = calculatePrice(minutes, priceRules);
+                const price = calculatePrice(minutes, priceRules, tolerance);
                 startSession(computer.id, minutes, customerName, price, startTime);
             }
         } else if (modalMode === 'add') {
             // Add time (extend fixed)
             if (computer.mode === 'fixed') {
-                const price = calculatePrice(minutes, priceRules); // Simplified price for added block - logic is flawed in original addTime but we follow pattern
-                addTime(computer.id, minutes, price);
+                const strategy = generalSettings?.pricing_strategy || 'cumulative';
+                let priceToAdd = 0;
+
+                if (strategy === 'recalculate' && computer.startTime && computer.endTime) {
+                    const currentDurationMinutes = Math.round((computer.endTime - computer.startTime) / 60000);
+                    const newTotalDuration = currentDurationMinutes + minutes;
+                    const newTotalPrice = calculatePrice(newTotalDuration, priceRules, tolerance);
+                    const currentPrice = computer.price || 0;
+                    priceToAdd = Math.max(0, newTotalPrice - currentPrice);
+                } else {
+                    priceToAdd = calculatePrice(minutes, priceRules, tolerance);
+                }
+
+                addTime(computer.id, minutes, priceToAdd);
             }
         } else if (modalMode === 'edit') {
             // Update session (Switch mode or change total duration)
@@ -120,7 +140,7 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                 updateSession(computer.id, 'open');
             } else {
                 // Switch/Update to Fixed
-                const price = calculatePrice(minutes, priceRules);
+                const price = calculatePrice(minutes, priceRules, tolerance);
                 updateSession(computer.id, 'fixed', minutes, price);
             }
         }
@@ -132,35 +152,59 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
         setReceiptVisible(true);
     };
 
-    const confirmStopSession = () => {
-        stopSession(computer.id);
+    const confirmStopSession = (price: number) => {
+        stopSession(computer.id, price);
         setReceiptVisible(false);
     };
 
-    const menuItems: MenuProps['items'] = [
-        ...(computer.status === 'occupied' ? [{
-            key: 'move',
-            label: 'Cambiar de PC',
-            icon: <DesktopOutlined />,
-            onClick: () => setMoveModalVisible(true),
-        }, {
+    const secondaryItems = [
+        {
+            key: 'history',
+            label: 'Ver Historial Diario',
+            icon: <HistoryOutlined />,
+            onClick: () => setHistoryModalVisible(true),
+        },
+        {
+            key: 'zone',
+            label: 'Asignar Zona',
+            icon: <EnvironmentOutlined />,
+            onClick: () => setAssignZoneModalVisible(true),
+        },
+        {
+            key: 'maintenance',
+            label: computer.status === 'maintenance' ? 'Finalizar Mantenimiento' : 'Poner en Mantenimiento',
+            icon: <StopOutlined />,
+            onClick: () => toggleMaintenance(computer.id),
+        },
+    ];
+
+    const menuItems: MenuProps['items'] = computer.status === 'occupied' ? [
+        {
             key: 'extra',
             label: 'Agregar Extra/Gasto',
             icon: <PlusOutlined />,
             onClick: () => setExtraModalVisible(true),
-        }, {
+        },
+        {
+            key: 'move',
+            label: 'Cambiar de PC',
+            icon: <DesktopOutlined />,
+            onClick: () => setMoveModalVisible(true),
+        },
+        {
             key: 'editName',
             label: 'Editar Nombre',
             icon: <UserOutlined />,
             onClick: () => setEditNameModalVisible(true),
-        }] : []),
-        {
-            key: 'maintenance',
-            label: computer.status === 'maintenance' ? 'Finalizar Mantenimiento' : 'Poner en Mantenimiento',
-            icon: <ToolOutlined />,
-            onClick: () => toggleMaintenance(computer.id),
         },
-    ];
+        { type: 'divider' as const },
+        {
+            key: 'sub-more',
+            label: 'Más Opciones',
+            icon: <ToolOutlined />,
+            children: secondaryItems
+        }
+    ] : secondaryItems;
 
     const getBorderColor = (status: string, mode?: string) => {
         switch (status) {
@@ -232,7 +276,7 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                                     size="small"
                                     type={computer.isPaid ? "primary" : "default"}
                                     shape="circle"
-                                    icon={<DollarOutlined />}
+                                    icon={computer.isPaid ? <CheckCircleOutlined /> : <DollarOutlined />}
                                     danger={!computer.isPaid}
                                     onClick={(e) => { e.stopPropagation(); togglePaid(computer.id); }}
                                     style={{ width: 22, height: 22, minWidth: 22, fontSize: 12 }}
@@ -302,7 +346,9 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                     </div>
                 ) : computer.status === 'available' ? (
                     <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                        <Tag color="success" style={{ marginBottom: 10 }}>LIBRE</Tag>
+                        <Tag color={zone.isDefault ? "success" : "purple"} style={{ marginBottom: 10 }}>
+                            {zone.isDefault ? 'LIBRE' : zone.name.toUpperCase()}
+                        </Tag>
                         <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleStartClick} block size="small" style={{ backgroundColor: '#52c41a' }}>
                             Iniciar
                         </Button>
@@ -322,6 +368,8 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                 mode={modalMode}
                 computerName={computer.name}
                 currentDuration={getCurrentDuration()}
+                priceRules={priceRules}
+                tolerance={tolerance}
             />
 
             <MoveSessionModal
@@ -353,6 +401,21 @@ export const ComputerCardBase: React.FC<ComputerCardProps> = ({ computer }) => {
                 computer={computer}
                 finalDurationPrice={currentPrice}
             />
+
+            <AssignZoneModal
+                visible={assignZoneModalVisible}
+                onCancel={() => setAssignZoneModalVisible(false)}
+                onConfirm={(zoneId) => { updateZone(computer.id, zoneId); setAssignZoneModalVisible(false); }}
+                currentZoneId={computer.zoneId}
+                computerName={computer.name}
+            />
+
+            <HistoryModal
+                visible={historyModalVisible}
+                onCancel={() => setHistoryModalVisible(false)}
+                computerId={computer.id}
+                computerName={computer.name}
+            />
         </>
     );
 };
@@ -368,6 +431,7 @@ const arePropsEqual = (prevProps: ComputerCardProps, nextProps: ComputerCardProp
     if (p.endTime !== n.endTime) return false;
     if (p.customerName !== n.customerName) return false;
     if (p.isPaid !== n.isPaid) return false;
+    if (p.zoneId !== n.zoneId) return false;
 
     // Deep check extras (length and content)
     if (p.extras?.length !== n.extras?.length) return false;

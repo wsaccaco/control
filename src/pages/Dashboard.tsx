@@ -1,20 +1,31 @@
 import React from 'react';
 import { Row, Col, Typography, Space, Button, Switch } from 'antd';
-import { SettingOutlined, BellOutlined } from '@ant-design/icons';
+import { SettingOutlined, BellOutlined, EyeOutlined, EyeInvisibleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useComputers } from '../context/ComputerContext';
 import { useSettings } from '../context/SettingsContext';
 import { ComputerCard } from '../components/ComputerCard';
 import { NextToFinishList } from '../components/NextToFinishList';
 import { useNavigate } from 'react-router-dom';
+import { formatCurrency } from '../utils/pricing';
 
 const { Title, Text } = Typography;
 
 export const Dashboard: React.FC = () => {
-    const { computers } = useComputers();
+    const { computers, getDailyRevenue } = useComputers();
     const { viewMode, toggleViewMode } = useSettings();
     const navigate = useNavigate();
 
     const [statusFilter, setStatusFilter] = React.useState<'all' | 'available' | 'occupied' | 'maintenance'>('all');
+    const [dailyRevenue, setDailyRevenue] = React.useState(0);
+    const [revenueVisible, setRevenueVisible] = React.useState(false);
+
+    React.useEffect(() => {
+        getDailyRevenue().then(res => setDailyRevenue(res.total));
+    }, [getDailyRevenue]);
+
+    const handleRefreshRevenue = () => {
+        getDailyRevenue().then(res => setDailyRevenue(res.total));
+    };
 
     const available = computers.filter(c => c.status === 'available').length;
     const occupied = computers.filter(c => c.status === 'occupied').length;
@@ -57,6 +68,32 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="dashboard-controls" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
+
+                    {/* Daily Revenue Widget */}
+                    <div style={{ marginRight: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Text type="secondary" style={{ marginRight: 4, fontSize: '14px' }}>Venta Hoy:</Text>
+                        <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.05)', padding: '2px 12px', borderRadius: '16px' }}>
+                            <Text strong style={{ fontSize: '16px', color: '#13c2c2', marginRight: '8px', minWidth: '60px', textAlign: 'center' }}>
+                                {revenueVisible ? formatCurrency(dailyRevenue) : '••••••'}
+                            </Text>
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={revenueVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                                onClick={() => setRevenueVisible(!revenueVisible)}
+                                style={{ color: '#8c8c8c', minWidth: '24px', height: '24px' }}
+                            />
+                        </div>
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            onClick={handleRefreshRevenue}
+                            title="Actualizar Monto"
+                            style={{ marginLeft: 0, color: '#8c8c8c' }}
+                        />
+                    </div>
+
                     {/* Notification Button - Only show if supported and permission is default */}
                     {'Notification' in window && Notification.permission === 'default' && (
                         <Button

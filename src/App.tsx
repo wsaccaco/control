@@ -24,6 +24,20 @@ const AuthWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
+
+    // Global Error Handler for Socket Auth
+    const onConnectError = (err: any) => {
+      if (err.message && err.message.includes('Authentication error')) {
+        console.error("Authentication failed, logging out...", err);
+        CloudAuth.logout();
+      }
+    };
+
+    socket.on('connect_error', onConnectError);
+
+    return () => {
+      socket.off('connect_error', onConnectError);
+    };
   }, []);
 
   if (authenticated === null) return null; // Loading state
